@@ -18,7 +18,7 @@ import (
 type Task struct {
 	Id        int    `json:"id"`
 	Desc      string `json:"desc"`
-	DependsOn *[]int  `json:"depends_on"`
+	DependsOn []int  `json:"depends_on"`
 	Closed    bool   `json:"closed"`
 }
 
