@@ -27,15 +27,15 @@ func TestDeleteTask(t *testing.T) {
 		Task{Id: 8},
 		Task{Id: 9},
 	}
-	taskDelete(&tasks, 5)
+	tasks.taskDelete(5)
 	if toString(tasks) != "12346789" {
 		t.Errorf("error 5")
 	}
-	taskDelete(&tasks, 1)
+	tasks.taskDelete(1)
 	if toString(tasks) != "2346789" {
 		t.Errorf("error 1")
 	}
-	taskDelete(&tasks, 9)
+	tasks.taskDelete(9)
 	if toString(tasks) != "234678" {
 		t.Errorf("error 9")
 	}

@@ -22,7 +22,6 @@ type Task struct {
 	Closed    bool   `json:"closed"`
 }
 
-// Type for save/load data from storage
 type TaskList []Task
 
 type Ctx struct {
@@ -30,6 +29,10 @@ type Ctx struct {
 	w      io.Writer
 	prompt []string
 }
+
+// command line args
+var debug int
+var filename string
 
 func saveTasks(filename string, t TaskList) error {
 	b, err := json.Marshal(t)
@@ -60,9 +63,6 @@ func loadTasks(filename string) (*TaskList, error) {
 	return &t, nil
 }
 
-var debug int
-var filename string
-
 func debugF(format string, a ...any) {
 	if debug > 0 {
 		fmt.Fprintf(os.Stdout, format, a...)
@@ -72,6 +72,20 @@ func debugF(format string, a ...any) {
 func debug2F(format string, a ...any) {
 	if debug > 1 {
 		fmt.Fprintf(os.Stdout, format, a...)
+	}
+}
+
+func debug2PrintTaskList(t []*Task) {
+	if debug > 1 {
+		for _, v := range t {
+			var dl []string
+			for _, d := range v.DependsOn {
+				dl = append(dl, fmt.Sprint(d))
+			}
+			ds := strings.Join(dl, ",")
+			fmt.Printf("[%d](%s)->", v.Id, ds)
+		}
+		fmt.Printf("\n")
 	}
 }
 
@@ -125,7 +139,7 @@ func main() {
 
 	var s string
 	for {
-		s = strings.TrimSpace(ctx.readString(nil))
+		s = ctx.readUserInput(nil)
 		debugF("usr: [%s]\n", s)
 		switch s {
 		case "c":
@@ -140,14 +154,6 @@ func main() {
 			makeLinkCmd(ctx)
 		}
 	}
-}
-
-func printChain(tl []*Task) string {
-	var b []string
-	for _, t := range tl {
-		b = append(b, fmt.Sprintf("[%d]%s", t.Id, t.Desc))
-	}
-	return strings.Join(b, "->")
 }
 
 func (t *TaskList) topoSort() ([]int, []Task) {
@@ -202,7 +208,7 @@ func makeLinkCmd(ctx *Ctx) {
 			return 0, 0, errors.New("p a number")
 		}
 
-		if !taskExists(ctx.Tasks, int(pId64)) {
+		if !ctx.Tasks.taskExists(int(pId64)) {
 			return 0, 0, errors.New("p not found")
 		}
 		pId := int(pId64)
@@ -212,7 +218,7 @@ func makeLinkCmd(ctx *Ctx) {
 			return 0, 0, errors.New("d a number")
 		}
 
-		if !taskExists(ctx.Tasks, int(dId64)) {
+		if !ctx.Tasks.taskExists(int(dId64)) {
 			return 0, 0, errors.New("p not found")
 		}
 		dId := int(dId64)
@@ -221,7 +227,7 @@ func makeLinkCmd(ctx *Ctx) {
 
 	var s string
 	for {
-		s = ctx.readString(func(input string) error {
+		s = ctx.readUserInput(func(input string) error {
 			switch input {
 			case "", "e", "l", "ls":
 				return nil
@@ -233,7 +239,7 @@ func makeLinkCmd(ctx *Ctx) {
 
 			if can, chain := ctx.Tasks.canTaskBeParent(pId, dId); !can {
 				return errors.Join(
-					fmt.Errorf("dep error chain %s", printChain(*chain)), err)
+					fmt.Errorf("dep error chain %s", formatTasksForError(*chain)), err)
 			}
 			return nil
 		})
@@ -311,24 +317,8 @@ func (t *Task) removeDep(d int) {
 		}
 	}
 	if f >= 0 {
-		fmt.Println(t.DependsOn)
 		copy(t.DependsOn[f:], t.DependsOn[f+1:])
 		t.DependsOn = t.DependsOn[:len(t.DependsOn)-1]
-		fmt.Println(t.DependsOn)
-	}
-}
-
-func printTaskList(t []*Task) {
-	if debug > 1 {
-		for _, v := range t {
-			var dl []string
-			for _, d := range v.DependsOn {
-				dl = append(dl, fmt.Sprint(d))
-			}
-			ds := strings.Join(dl, ",")
-			fmt.Printf("[%d](%s)->", v.Id, ds)
-		}
-		fmt.Printf("\n")
 	}
 }
 
@@ -341,11 +331,11 @@ func (t *TaskList) canTaskBeParent(pId, dId int) (bool, *[]*Task) {
 		debug2F("on %d\n", task.Id)
 		chain = append(chain, task)
 		debug2F("def->")
-		printTaskList(chain)
+		debug2PrintTaskList(chain)
 
 		defer func() {
 			debug2F("def-<")
-			printTaskList(chain)
+			debug2PrintTaskList(chain)
 			chain = chain[:len(chain)-1]
 		}()
 
@@ -418,7 +408,7 @@ func createCmd(ctx *Ctx) {
 	addColor := addColor()
 	ctx.addPrompt("new" + info("❯"))
 	defer ctx.popPrompt()
-	s := ctx.readString(nil)
+	s := ctx.readUserInput(nil)
 
 	if s == "" {
 		ctx.print("abort\n")
@@ -438,7 +428,7 @@ func createCmd(ctx *Ctx) {
 	ctx.print("%s add %s: %s\n", addColor(""), idColor(t.Id), t.Desc)
 }
 
-func taskExists(t *TaskList, id int) bool {
+func (t *TaskList) taskExists(id int) bool {
 	for _, v := range *t {
 		if id == v.Id {
 			return true
@@ -447,7 +437,7 @@ func taskExists(t *TaskList, id int) bool {
 	return false
 }
 
-func taskDelete(t *TaskList, id int) {
+func (t *TaskList) taskDelete(id int) {
 	f := -1
 	for i, v := range *t {
 		if id == v.Id {
@@ -471,7 +461,7 @@ func deleteCmd(ctx *Ctx) {
 	var s string
 	for {
 		var id int
-		s = ctx.readString(func(input string) error {
+		s = ctx.readUserInput(func(input string) error {
 			if input == "" || input == "e" {
 				return nil
 			}
@@ -479,7 +469,7 @@ func deleteCmd(ctx *Ctx) {
 			if err != nil {
 				return errors.New("not a number")
 			}
-			if !taskExists(ctx.Tasks, int(id64)) {
+			if !ctx.Tasks.taskExists(int(id64)) {
 				return errors.New("not found")
 			}
 			id = int(id64)
@@ -496,7 +486,7 @@ func deleteCmd(ctx *Ctx) {
 			continue
 		}
 
-		taskDelete(ctx.Tasks, id)
+		ctx.Tasks.taskDelete(id)
 		ctx.printLn(info("ok"))
 		saveTasks(filename, *ctx.Tasks)
 	}
@@ -525,7 +515,7 @@ func listCmd(ctx *Ctx, sorted bool) {
 	}
 }
 
-func (ctx *Ctx) readString(validate func(input string) error) string {
+func (ctx *Ctx) readUserInput(validate func(input string) error) string {
 	templates := &promptui.PromptTemplates{
 		Prompt:  "{{ . }} ",
 		Valid:   "{{ . | green }} ",
@@ -546,7 +536,7 @@ func (ctx *Ctx) readString(validate func(input string) error) string {
 		os.Exit(0)
 	}
 
-	return result
+	return strings.TrimSpace(result)
 }
 
 func (ctx *Ctx) print(format string, a ...any) {
@@ -567,4 +557,12 @@ func (ctx *Ctx) addPrompt(s string) {
 
 func (ctx *Ctx) popPrompt() {
 	ctx.prompt = ctx.prompt[:len(ctx.prompt)-1]
+}
+
+func formatTasksForError(tl []*Task) string {
+	var b []string
+	for _, t := range tl {
+		b = append(b, fmt.Sprintf("[%d]%s", t.Id, t.Desc))
+	}
+	return strings.Join(b, "->")
 }
