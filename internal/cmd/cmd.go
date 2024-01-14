@@ -27,7 +27,7 @@ var debug int
 var filename string
 
 func Run() {
-	flag.IntVar(&debug, "debug", 1, "use debug for debug")
+	flag.IntVar(&debug, "debug", 0, "use debug for debug")
 	flag.StringVar(&filename, "filename", "./hta.json", "hta db")
 	flag.Parse()
 
@@ -282,7 +282,8 @@ func listCmd(ctx *Ctx, sorted bool) {
 			}
 			d = fmt.Sprintf("󰜴[%s]", strings.Join(b, ", "))
 		}
-		ctx.print(" %s : %s %s\n", idColor(v.Id), v.Desc, d)
+		tt := fmt.Sprintf("%3d", v.Id)
+		ctx.print("%s: %s %s\n", idColor(tt), v.Desc, d)
 	}
 }
 
