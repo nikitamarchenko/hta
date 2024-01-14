@@ -9,10 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-
 	"github.com/nikitamarchenko/hta/internal/task"
 	"github.com/nikitamarchenko/hta/internal/util"
-
 
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
@@ -32,6 +30,9 @@ func Run() {
 	flag.IntVar(&debug, "debug", 1, "use debug for debug")
 	flag.StringVar(&filename, "filename", "./hta.json", "hta db")
 	flag.Parse()
+
+	task.Debug = debug
+	util.Debug = debug
 
 	info := infoColor()
 
@@ -70,6 +71,8 @@ func Run() {
 			listCmd(ctx, true)
 		case "ln":
 			makeLinkCmd(ctx)
+		case "rn":
+			renameCmd(ctx)
 		}
 	}
 }
@@ -283,7 +286,62 @@ func listCmd(ctx *Ctx, sorted bool) {
 	}
 }
 
+func renameCmd(ctx *Ctx) {
+	info := infoColor()
+	add := addColor()
+	help := helpColor()
+	idColor := idColor()
+	ctx.addPrompt(add("rename") + info("❯"))
+	defer ctx.popPrompt()
+	var s string
+	for {
+		var id int
+		s = ctx.readUserInput(func(input string) error {
+			if input == "" || input == "e" {
+				return nil
+			}
+			id64, err := strconv.ParseInt(input, 10, 64)
+			if err != nil {
+				return errors.New("not a number")
+			}
+			if !ctx.Tasks.TaskExists(int(id64)) {
+				return errors.New("not found")
+			}
+			id = int(id64)
+			return nil
+		})
+
+		if s == "e" {
+			break
+		}
+
+		if s == "" {
+			listCmd(ctx, false)
+			ctx.printLn(help("  'e' for exit"))
+			continue
+		}
+		t := ctx.Tasks.GetTaskById(id)
+		ctx.addPrompt(idColor(id) + info("❯"))
+		defer ctx.popPrompt()
+		s := ctx.readUserInputWithDefault(nil, t.Desc)
+
+		if s == "" {
+			ctx.print("abort\n")
+			return
+		}
+		t.Desc = s
+		task.SaveTasks(filename, *ctx.Tasks)
+		ctx.printLn(info("ok"))
+		return
+	}
+}
+
 func (ctx *Ctx) readUserInput(validate func(input string) error) string {
+	return ctx.readUserInputWithDefault(validate, "")
+}
+
+func (ctx *Ctx) readUserInputWithDefault(
+	validate func(input string) error, def string) string {
 	templates := &promptui.PromptTemplates{
 		Prompt:  "{{ . }} ",
 		Valid:   "{{ . | green }} ",
@@ -295,6 +353,7 @@ func (ctx *Ctx) readUserInput(validate func(input string) error) string {
 		Label:     ctx.createPrompt(),
 		Templates: templates,
 		Validate:  validate,
+		Default:   def,
 	}
 
 	result, err := prompt.Run()
