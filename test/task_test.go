@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	. "github.com/nikitamarchenko/hta/internal/task"
+	"github.com/stretchr/testify/assert"
 )
 
 func toString(t []Task) string {
@@ -131,4 +132,5 @@ func TestTopoSort(t *testing.T) {
 	t.Logf("%#v\n", order)
 	t.Logf("%#v\n", items)
 
+	assert.Equal(t, order, []int{5, 3, 2, 1, 4})
 }
