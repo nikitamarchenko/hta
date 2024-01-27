@@ -97,6 +97,96 @@ func helpColor() func(a ...interface{}) string {
 	return color.New(color.FgHiBlack).SprintFunc()
 }
 
+func createCmd(ctx *Ctx) {
+	info := infoColor()
+	idColor := idColor()
+	addColor := addColor()
+	ctx.addPrompt("new" + info("❯"))
+	defer ctx.popPrompt()
+	s := ctx.readUserInput(nil)
+
+	if s == "" {
+		ctx.print("abort\n")
+		return
+	}
+
+	newId := 1
+	for _, v := range *ctx.Tasks {
+		if newId <= v.Id {
+			newId = v.Id + 1
+		}
+	}
+
+	t := task.Task{Id: newId, Desc: s, DependsOn: []int{}}
+	*ctx.Tasks = append(*ctx.Tasks, t)
+	task.SaveTasks(filename, *ctx.Tasks)
+	ctx.print("%s add %s: %s\n", addColor(""), idColor(t.Id), t.Desc)
+}
+
+func deleteCmd(ctx *Ctx) {
+	info := infoColor()
+	warn := warnColor()
+	help := helpColor()
+	ctx.addPrompt(warn("delete") + info("❯"))
+	defer ctx.popPrompt()
+	var s string
+	for {
+		var id int
+		s = ctx.readUserInput(func(input string) error {
+			if input == "" || input == "e" {
+				return nil
+			}
+			id64, err := strconv.ParseInt(input, 10, 64)
+			if err != nil {
+				return errors.New("not a number")
+			}
+			if !ctx.Tasks.TaskExists(int(id64)) {
+				return errors.New("not found")
+			}
+			id = int(id64)
+			return nil
+		})
+
+		if s == "e" {
+			break
+		}
+
+		if s == "" {
+			listCmd(ctx, false)
+			ctx.printLn(help("  'e' for exit"))
+			continue
+		}
+
+		ctx.Tasks.TaskDelete(id)
+		ctx.printLn(info("ok"))
+		task.SaveTasks(filename, *ctx.Tasks)
+	}
+}
+
+func listCmd(ctx *Ctx, sorted bool) {
+	idColor := idColor()
+
+	var items []task.Task
+	if sorted {
+		_, items = ctx.Tasks.TopoSort()
+	} else {
+		items = *ctx.Tasks
+	}
+
+	for _, v := range items {
+		var d string
+		if len(v.DependsOn) > 0 {
+			var b []string
+			for _, i := range v.DependsOn {
+				b = append(b, idColor(i))
+			}
+			d = fmt.Sprintf("󰜴[%s]", strings.Join(b, ", "))
+		}
+		tt := fmt.Sprintf("%3d", v.Id)
+		ctx.print("%s: %s %s\n", idColor(tt), v.Desc, d)
+	}
+}
+
 func makeLinkCmd(ctx *Ctx) {
 
 	info := infoColor()
@@ -194,96 +284,6 @@ func makeLinkCmd(ctx *Ctx) {
 		}
 		ctx.printLn(info("ok"), text)
 		task.SaveTasks(filename, *ctx.Tasks)
-	}
-}
-
-func createCmd(ctx *Ctx) {
-	info := infoColor()
-	idColor := idColor()
-	addColor := addColor()
-	ctx.addPrompt("new" + info("❯"))
-	defer ctx.popPrompt()
-	s := ctx.readUserInput(nil)
-
-	if s == "" {
-		ctx.print("abort\n")
-		return
-	}
-
-	newId := 1
-	for _, v := range *ctx.Tasks {
-		if newId <= v.Id {
-			newId = v.Id + 1
-		}
-	}
-
-	t := task.Task{Id: newId, Desc: s, DependsOn: []int{}}
-	*ctx.Tasks = append(*ctx.Tasks, t)
-	task.SaveTasks(filename, *ctx.Tasks)
-	ctx.print("%s add %s: %s\n", addColor(""), idColor(t.Id), t.Desc)
-}
-
-func deleteCmd(ctx *Ctx) {
-	info := infoColor()
-	warn := warnColor()
-	help := helpColor()
-	ctx.addPrompt(warn("delete") + info("❯"))
-	defer ctx.popPrompt()
-	var s string
-	for {
-		var id int
-		s = ctx.readUserInput(func(input string) error {
-			if input == "" || input == "e" {
-				return nil
-			}
-			id64, err := strconv.ParseInt(input, 10, 64)
-			if err != nil {
-				return errors.New("not a number")
-			}
-			if !ctx.Tasks.TaskExists(int(id64)) {
-				return errors.New("not found")
-			}
-			id = int(id64)
-			return nil
-		})
-
-		if s == "e" {
-			break
-		}
-
-		if s == "" {
-			listCmd(ctx, false)
-			ctx.printLn(help("  'e' for exit"))
-			continue
-		}
-
-		ctx.Tasks.TaskDelete(id)
-		ctx.printLn(info("ok"))
-		task.SaveTasks(filename, *ctx.Tasks)
-	}
-}
-
-func listCmd(ctx *Ctx, sorted bool) {
-	idColor := idColor()
-
-	var items []task.Task
-	if sorted {
-		_, items = ctx.Tasks.TopoSort()
-	} else {
-		items = *ctx.Tasks
-	}
-
-	for _, v := range items {
-		var d string
-		if len(v.DependsOn) > 0 {
-			var b []string
-			for _, i := range v.DependsOn {
-				b = append(b, idColor(i))
-			}
-			d = fmt.Sprintf("󰜴[%s]", strings.Join(b, ", "))
-		}
-		tt := fmt.Sprintf("%3d", v.Id)
-		ctx.print("%s: %s %s\n", idColor(tt), v.Desc, d)
 	}
 }
 
