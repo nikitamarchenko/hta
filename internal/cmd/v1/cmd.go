@@ -1,8 +1,7 @@
-package cmd
+package cmd_v1
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -26,13 +25,10 @@ type Ctx struct {
 var debug int
 var filename string
 
-func Run() {
-	flag.IntVar(&debug, "debug", 0, "use debug for debug")
-	flag.StringVar(&filename, "filename", "./hta.json", "hta db")
-	flag.Parse()
+func Run(d int, f string) {
 
-	task.Debug = debug
-	util.Debug = debug
+	filename = f
+	debug, util.Debug, task.Debug = d, d, d
 
 	info := infoColor()
 

@@ -3,10 +3,10 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/nikitamarchenko/hta/internal/util"
 	"os"
 	"sort"
 	"strings"
-	"github.com/nikitamarchenko/hta/internal/util"
 )
 
 type Task struct {
@@ -122,6 +122,18 @@ func (t *TaskList) IsTaskHasDeps(p int, d int) bool {
 		}
 	}
 	return false
+}
+
+func (t *TaskList) GetDependsFrom(p int) []int {
+	chain := []int{}
+	for _, v := range *t {
+		for _, vv := range v.DependsOn {
+			if vv == p {
+				chain = append(chain, v.Id)
+			}
+		}
+	}
+	return chain
 }
 
 func (t *Task) RemoveDep(d int) {
